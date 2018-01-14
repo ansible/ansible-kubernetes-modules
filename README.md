@@ -14,11 +14,11 @@ The goal is to make it easier for the Ansible community to find, adopt, and coll
 
 ## Why use this role?
 
-The purpose of copying the new Ansible K8s modules and plugins into this repository is to make it easier for anyone running an older release of Ansible to access and use the new modules. So, if you're running Ansible 2.5, which at the time of this writing is only available by running from source, or version greater than 2.5, then you don't need to use this role. In that case, all the modules will be delivered when you install Ansible. However, for versions prior to 2.5, you'll want to use this role.
+The purpose of copying the new Ansible K8s modules and plugins into this repository is to make it easier for anyone running an older release of Ansible to access and use the new modules. So, if you're running Ansible 2.5, which at the time of this writing is only available by running from source, or a version greater than 2.5, then you don't need to use this role. In that case, all the modules will be delivered when you install Ansible. However, for versions prior to 2.5, you'll want to use this role.
 
 ## What's included
 
-- [modules](./modules)
+- [modules](./library)
 - [lookup plugin](./lookup_plugins)
 - [connection plugin](./connection_plugins)
  
@@ -69,9 +69,11 @@ To use the modules, add it to a playbook like so:
 
 That's it. Just reference the role, and subsequent tasks and roles are able to call the modules.
 
+View the `openshift_raw` and `k8s_raw` source for available parameters, and more examples.
+
 ### Using the connection plugin
 
-Included in the role are the `kubectl` and `oc` conneciton plugins. To use them outside of the role, you'll need an `ansible.cfg` file similar to the following:
+Included in the role are the `kubectl` and `oc` connection plugins. To use them outside of the role, you'll need an `ansible.cfg` file similar to the following:
 
 ```
 [defaults]
@@ -95,11 +97,11 @@ ansible_connection=kubectl
 
 The `kubectl` connection plugin requires the `kubectl` binary installed on the Ansible control node. The plugin is a wrapper around the `kubectl exec` command. The same is true for the `oc` connection plugin, where you'll need to have the `oc` binary available on the control node. 
 
-The plugins also support several variables for connecting to the API. View the source to see the available parameters. Parameters are passed by setting the perscribed variables in the inventory file, or by setting any associated environment variables.
+The plugins also support several variables for connecting to the API. View the source to see the available parameters. Parameters are passed by setting the prescribed variables in the inventory file, or by setting any associated environment variables.
 
 ## Using lookup plugins
 
-Both `k8s` and `openshift` lookup plugins are available. They interact with the API directly, and do not rely on the CLI binaries. To use them, you'll need to the add the `lookup_plugins` directory from the role to the `lookup_plugins` setting in your `ansibe.cfg` file. For example:
+Both `k8s` and `openshift` lookup plugins are available. They interact with the API directly, and do not rely on the CLI binaries. To use them, you'll need to add the `lookup_plugins` directory from the role to the `lookup_plugins` setting in your `ansibe.cfg` file. For example:
 
 ```
 [defaults]
@@ -124,46 +126,6 @@ Here's an example playbook that use the `openshift` lookup plugin to discover a 
 ```
 
 View the plugin source for a full description of the available parameters for each lookup plugin..
-
-## Module parameters 
-
-If available, the OpenShift Python Client will use a Kubernetes config file to get information about the API. Use the following options to control where it looks for the file, and the context it uses to authenticate with the API:
-
-kubeconfig
-> The default path to the config file is `~/.kube/config`. Use to pass an alternate file path.
-
-context
-> Name of the configuration context to use for authentication. If not specified, the current, active contexts is used.
-
-Use the following parameters to authenticate with the API:
-
-host
-> Provide the URL to the API server.
-
-ssl_ca_cert
-> Path to the Certificate Authority certificate file.
-
-cert_file
-> Path to the server certificate file.
-
-key_file
-> Path to the private key file.
-
-api_key
-> API token.
-
-verify_ssl
-> Set to *true* or *false*. If *false*, SSL verification will not be enforced. 
-
-username
-> If using basic auth, provide a username.
-
-password
-> The password for basic auth.
-
-## Environment Variables
-
-Rather than pass the authentication settings as parameters to individual tasks, you can pass the information using environment variables. The name of the environment variables is *K8S_AUTH_* followed by the variable name in uppercase. For example, *key_file* would be *K8S_AUTH_KEY_FILE*
 
 ## Role Variables
 
