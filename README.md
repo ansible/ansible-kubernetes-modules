@@ -42,17 +42,20 @@ Use the Galaxy client to install the role. To access the new Ansible 2.5 version
 $ ansible-galaxy install git+git@github.com:ansible/ansible-kubernetes-modules.git,ansible2.5
 ```
 
-### Using the modules 
+### Accessing the modules and plugins 
 
-To use the modules, add it to a playbook like so:
+To use the modules and plugins delivered in this role, reference it in a playbook like so:
 
 ```
 ---
 - hosts: localhost
-  remote_user: root
+  connection: local 
+  gather_facts: no
+
   roles:
     - role: ansible.kubernetes-modules
       install_python_requirements: no
+
   tasks:
     - name: Create a new project
       openshift_raw:
@@ -67,23 +70,22 @@ To use the modules, add it to a playbook like so:
         src: /my_project/service.yml
 ```
 
-That's it. Just reference the role, and subsequent tasks and roles are able to call the modules.
+That's it! Just reference the role, and subsequent tasks and roles are able to call the modules and plugins.
 
-View the `openshift_raw` and `k8s_raw` source for available parameters, and more examples.
+View the `openshift_raw` and `k8s_raw` source for available module parameters, and more examples.
 
 ### Using the connection plugin
 
-Included in the role are the `kubectl` and `oc` connection plugins. To use them outside of the role, you'll need an `ansible.cfg` file similar to the following:
+Included in the role are the `kubectl` and `oc` connection plugins.
+
+Before using the plugins, you may need to set `remote_tmp` in your `ansible.cfg` as follows:
 
 ```
 [defaults]
-connection_plugins = ~/my-roles/ansible-kubernetes-modules/connection_plugins
 remote_tmp = /tmp
 ```
 
-Add the `connection_plugins` subdirectory found within this role to the `connections_plugins` path defined in `ansible.cfg`. This will make the connection plugin accessible externally in other playbooks and roles.
-
-The above example also defines `remote_tmp`. Depending on the file system permissions inside the containers you're accessing, the working directory may or may not be writable. When Ansible connects to a remote host, in this case a running container, it copies module files and Ansible dependencies to the remote file system. If the workig directory is not writable, define `remote_tmp` to point to a path inside the container  that is writable. 
+Depending on the file system permissions inside the containers you're accessing, the working directory may or may not be writable. When Ansible connects to a remote host, in this case a running container, it copies module files and Ansible dependencies to the remote file system. If the workig directory is not writable, define `remote_tmp` to point to a path inside the container  that is writable. 
 
 Here's a sample inventory showing the `ansible_connection` variable set to the `kubectl` connection plugin:
 
@@ -95,20 +97,31 @@ galaxy-1-gp4kt
 ansible_connection=kubectl
 ```
 
+And a playbook to use with the above inventory might look like the followin:
+
+```
+- name: Test connnection
+  hosts: pods
+  gather_facts: yes
+
+  roles:
+    - role: ansible.kubernetes-modules
+      install_python_requirements: no
+
+  tasks:
+  - name: Connect to container
+    raw: echo 'Hello world!'
+```
+
 The `kubectl` connection plugin requires the `kubectl` binary installed on the Ansible control node. The plugin is a wrapper around the `kubectl exec` command. The same is true for the `oc` connection plugin, where you'll need to have the `oc` binary available on the control node. 
 
 The plugins also support several variables for connecting to the API. View the source to see the available parameters. Parameters are passed by setting the prescribed variables in the inventory file, or by setting any associated environment variables.
 
 ## Using lookup plugins
 
-Both `k8s` and `openshift` lookup plugins are available. They interact with the API directly, and do not rely on the CLI binaries. To use them, you'll need to add the `lookup_plugins` directory from the role to the `lookup_plugins` setting in your `ansibe.cfg` file. For example:
+Both `k8s` and `openshift` lookup plugins are available. They interact with the API directly, and do not rely on the CLI binaries.
 
-```
-[defaults]
-lookup_plugins = ~/my-roles/ansible-kubernetes-modules/lookup_plugins
-```
-
-Here's an example playbook that use the `openshift` lookup plugin to discover a project:
+Here's an example playbook that uses the `openshift` lookup plugin to discover a project:
 
 ```
 - name: Test roles
@@ -116,8 +129,11 @@ Here's an example playbook that use the `openshift` lookup plugin to discover a 
   connection: local
   gather_facts: no
 
-  tasks:
+  roles:
+  - role: ansible-kubernetes-modules
+    install_python_requirements: no
 
+  tasks:
   - set_fact:
       project: "{{ lookup('openshift', kind='Project', resource_name='testing2') }}"
 
@@ -125,7 +141,7 @@ Here's an example playbook that use the `openshift` lookup plugin to discover a 
       var: project
 ```
 
-View the plugin source for a full description of the available parameters for each lookup plugin..
+View the plugin source for a full description of the available parameters, and further examples. 
 
 ## Role Variables
 

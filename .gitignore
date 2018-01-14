@@ -1,5 +1,5 @@
 *.retry
 .idea
 *.log
-.pyc
+*.pyc
 __pycache__/
