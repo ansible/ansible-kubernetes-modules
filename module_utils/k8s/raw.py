@@ -23,6 +23,8 @@ import copy
 from ansible.module_utils.k8s.helper import COMMON_ARG_SPEC, AUTH_ARG_SPEC, OPENSHIFT_ARG_SPEC
 from ansible.module_utils.k8s.common import KubernetesAnsibleModule
 
+from dictdiffer import diff
+
 try:
     from kubernetes.client.rest import ApiException
 except ImportError:
