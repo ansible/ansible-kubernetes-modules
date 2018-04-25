@@ -177,14 +177,14 @@ class KubernetesAnsibleModule(AnsibleModule):
                     if alias in self.params:
                         self.params.pop(alias)
 
-    def load_resource_definition(self, src):
+    def load_resource_definitions(self, src):
         """ Load the requested src path """
         result = None
         path = os.path.normpath(src)
         if not os.path.exists(path):
             self.fail_json(msg="Error accessing {0}. Does the file exist?".format(path))
         try:
-            result = yaml.safe_load(open(path, 'r'))
+            result = yaml.safe_load_all(open(path, 'r'))
         except (IOError, yaml.YAMLError) as exc:
             self.fail_json(msg="Error loading resource_definition: {0}".format(exc))
         return result

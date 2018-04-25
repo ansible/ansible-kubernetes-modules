@@ -51,21 +51,24 @@ class KubernetesRawModule(KubernetesAnsibleModule):
         self.resource_definition = self.params.pop('resource_definition')
         self.src = self.params.pop('src')
         if self.src:
-            self.resource_definition = self.load_resource_definition(self.src)
+            self.resource_definitions = self.load_resource_definitions(self.src)
 
-        if self.resource_definition:
-            self.api_version = self.resource_definition.get('apiVersion')
-            self.kind = self.resource_definition.get('kind')
+        if isinstance(self.resource_definition, dict):
+            if self.resource_definition:
+                self.api_version = self.resource_definition.get('apiVersion')
+                self.kind = self.resource_definition.get('kind')
 
-        if not self.api_version:
-            self.fail_json(
-                msg=("Error: no api_version specified. Use the api_version parameter, or provide it as part of a ",
-                     "resource_definition.")
-            )
-        if not self.kind:
-            self.fail_json(
-                msg="Error: no kind specified. Use the kind parameter, or provide it as part of a resource_definition"
-            )
+            if not self.api_version:
+                self.fail_json(
+                    msg=("Error: no api_version specified. Use the api_version parameter, or provide it as part of a ",
+                        "resource_definition.")
+                )
+            if not self.kind:
+                self.fail_json(
+                    msg="Error: no kind specified. Use the kind parameter, or provide it as part of a resource_definition"
+                )
+
+            self.resource_definitions = [self.resource_definition]
 
     @property
     def argspec(self):
@@ -73,29 +76,35 @@ class KubernetesRawModule(KubernetesAnsibleModule):
         argspec.update(copy.deepcopy(AUTH_ARG_SPEC))
         return argspec
 
+    def exact_match(definition):
+        def inner(resource):
+            return all([
+                resource.kind == definition.get('kind'),
+                '/'.join([resource.group, resource.apiversion]) == definition.get('apiVersion')
+            ])
+        return inner
 
     def execute_module(self):
         self.client = self.get_api_client()
-        resource = self.client.search_resources(exact_match)
-
-        if self.helper.base_model_name_snake.endswith('list'):
-            k8s_obj = resource.list(namespace=self.params.get('namespace'))
-            return_attributes['result'] = k8s_obj.to_dict()
-            self.exit_json(**return_attributes)
-
-        perform_action(resource, self.resource_definition)
+        for definition in self.resource_definitions:
+            resource = self.client.search_resources(self.exact_match(definition))
+            self.perform_action(resource, definition)
 
     def perform_action(self, resource, definition):
 
         state = self.params.pop('state', None)
         force = self.params.pop('force', False)
-        name = self.params.get('name', self.resource_definition.get('metadata', {}).get('name'))
-        namespace = self.params.get('namespace', self.resource_definition.get('metadata', {}).get('namespace'))
+        name = definition.get('metadata', {}).get('name') or self.params.get('name')
+        namespace = definition.get('metadata', {}).get('namespace') or self.params.get('namespace')
         existing = None
+        return_attributes = dict(changed=False, result=dict())
 
         self.remove_aliases()
 
-        return_attributes = dict(changed=False, result=dict())
+        if definition['kind'].endswith('list'):
+            k8s_obj = resource.list(namespace=self.params.get('namespace'))
+            return_attributes['result'] = k8s_obj.to_dict()
+            self.exit_json(**return_attributes)
 
         try:
             existing = resource.get(name=name, namespace=namespace)
