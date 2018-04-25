@@ -3,7 +3,6 @@
     kubeconfig: '{{ os_kubeconfig }}'
     host: '{{ os_host }}'
     verify_ssl: '{{ os_verify_ssl }}'
-    debug: no
     definition:
       kind: Project
       apiVersion: project.openshift.io/v1
@@ -19,7 +18,6 @@
 - name: Create service from resource definition
   k8s:
     state: present
-    debug: yes
     kubeconfig: '{{ os_kubeconfig }}'
     host: '{{ os_host }}'
     verify_ssl: '{{ os_verify_ssl }}'
@@ -50,7 +48,6 @@
 - name: Create deployment from resource file
   k8s:
     state: present
-    debug: yes
     src: "{{ role_path }}/files/deployment.yml"
     kubeconfig: '{{ os_kubeconfig }}'
     host: '{{ os_host }}'

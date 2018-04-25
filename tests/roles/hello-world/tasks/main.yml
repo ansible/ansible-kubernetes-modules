@@ -4,7 +4,6 @@
     api_version: project.openshift.io/v1
     name: hello
     state: absent
-    debug: yes
     kubeconfig: '{{ os_kubeconfig }}'
     host: '{{ os_host }}'
     verify_ssl: '{{ os_verify_ssl }}'
@@ -18,7 +17,6 @@
     api_version: project.openshift.io/v1
     name: hello
     state: present
-    debug: yes
     kubeconfig: '{{ os_kubeconfig }}'
     host: '{{ os_host }}'
     verify_ssl: '{{ os_verify_ssl }}'
@@ -44,7 +42,6 @@
             name: web-tcp
         selector:
           app: hello
-    debug: yes
     kubeconfig: '{{ os_kubeconfig }}'
     host: '{{ os_host }}'
     verify_ssl: '{{ os_verify_ssl }}'
@@ -54,7 +51,6 @@
 
 - name: Create deployment config
   k8s:
-    debug: yes
     state: present
     kubeconfig: '{{ os_kubeconfig }}'
     host: '{{ os_host }}'
