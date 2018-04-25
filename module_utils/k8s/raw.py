@@ -53,9 +53,6 @@ class KubernetesRawModule(KubernetesAnsibleModule):
             self.api_version = self.resource_definition.get('apiVersion')
             self.kind = self.resource_definition.get('kind')
 
-        self.api_version = self.api_version.lower()
-        self.kind = to_snake(self.kind)
-
         if not self.api_version:
             self.fail_json(
                 msg=("Error: no api_version specified. Use the api_version parameter, or provide it as part of a ",
@@ -66,20 +63,78 @@ class KubernetesRawModule(KubernetesAnsibleModule):
                 msg="Error: no kind specified. Use the kind parameter, or provide it as part of a resource_definition"
             )
 
-        self.helper = self.get_helper(self.api_version, self.kind)
-
     @property
     def argspec(self):
         argspec = copy.deepcopy(COMMON_ARG_SPEC)
         argspec.update(copy.deepcopy(AUTH_ARG_SPEC))
         return argspec
 
-    def execute_module(self):
-        if self.resource_definition:
-            resource_params = self.resource_to_parameters(self.resource_definition)
-            self.params.update(resource_params)
+    def get_api_client(self):
+        auth_args = ('host', 'api_key', 'kubeconfig', 'context', 'username', 'password',
+                        'cert_file', 'key_file', 'ssl_ca_cert', 'verify_ssl')
 
-        self.authenticate()
+        configuration = kubernetes.client.Configuration()
+
+        for key, value in iteritems(self.params):
+            if key in auth_args and value is not None:
+                if key == 'api_key':
+                    setattr(configuration, key, {'authorization': "Bearer {}".format(value)})
+                else:
+                    setattr(configuration, key, value)
+            elif key in auth_args and value is None:
+                env_value = os.getenv('K8S_AUTH_{}'.format(key.upper()), None)
+                if env_value is not None:
+                    setattr(configuration, key, env_value)
+
+        kubernetes.client.Configuration.set_default(configuration)
+
+        if params.get('username') and params.get('password') and params.get('host'):
+            auth_method = 'params'
+        elif params.get('api_key') and params.get('host'):
+            auth_method = 'params'
+        elif params.get('kubeconfig') or params.get('context'):
+            auth_method = 'file'
+        else:
+            auth_method = 'default'
+
+        # First try to do incluster config, then kubeconig
+        if auth_method == 'default':
+            try:
+                kubernetes.config.load_incluster_config()
+                return kubernetes.client.ApiClient()
+            except kubernetes.config.ConfigException:
+                return self.client_from_kubeconfig(params.get('kubeconfig'), params.get('context'))
+
+        if auth_method == 'file':
+            return self.client_from_kubeconfig(params.get('kubeconfig'), params.get('context'))
+
+        if auth_method == 'params':
+            return kubernetes.client.ApiClient(configuration)
+
+
+    def client_from_kubeconfig(self):
+        try:
+            return kubernetes.config.new_client_from_config(config_file, context)
+        except (IOError, kubernetes.config.ConfigException):
+            # If we failed to load the default config file then we'll return
+            # an empty configuration
+            # If one was specified, we will crash
+            if not config_file:
+                return ApiClient()
+            raise
+
+    def exact_match(self, resource):
+        kind = self.resource_definition['kind']
+        if kind.lower().endswith('list'):
+            kind = self.resource_definition['kind'][:-4]
+        return (
+            kind == resource.kind and
+            self.resource_definition['apiVersion'] == '/'.join([resource.group, resource.apiversion])
+        )
+
+    def execute_module(self):
+
+        self.client = openshift.dynamic.DynamicClient(self.get_api_client())
 
         state = self.params.pop('state', None)
         force = self.params.pop('force', False)
@@ -175,36 +230,6 @@ class KubernetesRawModule(KubernetesAnsibleModule):
         k8s_obj = None
         try:
             k8s_obj = self.helper.get_object(name, namespace)
-        except KubernetesException as exc:
-            self.fail_json(msg='Failed to retrieve requested object',
-                           error=exc.value.get('status'))
-        return k8s_obj
-
-
-class OpenShiftRawModule(OpenShiftAnsibleModuleMixin, KubernetesRawModule):
-
-    @property
-    def argspec(self):
-        args = super(OpenShiftRawModule, self).argspec
-        args.update(copy.deepcopy(OPENSHIFT_ARG_SPEC))
-        return args
-
-    def _create(self, namespace):
-        if self.kind.lower() == 'project':
-            return self._create_project()
-        return KubernetesRawModule._create(self, namespace)
-
-    def _create_project(self):
-        new_obj = None
-        k8s_obj = None
-        try:
-            new_obj = self.helper.object_from_params(self.params)
-        except KubernetesException as exc:
-            self.fail_json(msg="Failed to create object: {0}".format(exc.message))
-        try:
-            k8s_obj = self.helper.create_project(metadata=new_obj.metadata,
-                                                 display_name=self.params.get('display_name'),
-                                                 description=self.params.get('description'))
         except KubernetesException as exc:
             self.fail_json(msg='Failed to retrieve requested object',
                            error=exc.value.get('status'))
