@@ -32,6 +32,7 @@ from ansible.module_utils.k8s.helper import\
     AnsibleMixin,\
     HAS_STRING_UTILS
 try:
+    import kubernetes
     from openshift.dynamic import DynamicClient
     HAS_K8S_MODULE_HELPER = True
 except ImportError:
