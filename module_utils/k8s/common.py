@@ -110,7 +110,7 @@ class KubernetesAnsibleModule(AnsibleModule):
                         'cert_file', 'key_file', 'ssl_ca_cert', 'verify_ssl')
 
         configuration = kubernetes.client.Configuration()
-
+        params = self.params
         for key, value in iteritems(self.params):
             if key in auth_args and value is not None:
                 if key == 'api_key':
