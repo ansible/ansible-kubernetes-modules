@@ -15,13 +15,15 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 
 DOCUMENTATION = '''
 
-module: k8s_raw
+module: k8s
 
 short_description: Manage Kubernetes (K8s) objects
 
-version_added: "2.5"
+version_added: "2.6"
 
-author: "Chris Houseknecht (@chouseknecht)"
+author: 
+    - "Chris Houseknecht (@chouseknecht)"
+    - "Fabian von Feilitzsch (@fabianvf)"
 
 description:
   - Use the OpenShift Python client to perform CRUD operations on K8s objects.
