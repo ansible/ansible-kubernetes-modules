@@ -25,6 +25,8 @@ import json
 
 from datetime import datetime
 
+from dictdiffer import diff
+
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.basic import AnsibleModule
 
@@ -94,6 +96,7 @@ class KubernetesAnsibleModule(AnsibleModule):
     def execute_module(self):
         raise NotImplementedError()
 
+    # TODO this no longer matches the structure of returned attributes
     def exit_json(self, **return_attributes):
         """ Filter any sensitive data that we don't want logged """
         if return_attributes.get('result') and \
@@ -133,6 +136,7 @@ class KubernetesAnsibleModule(AnsibleModule):
             auth_method = 'default'
 
         # First try to do incluster config, then kubeconfig
+        # TODO: Re-evaluate at some point (can be hard to force file)
         if auth_method == 'default':
             try:
                 kubernetes.config.load_incluster_config()
@@ -186,7 +190,24 @@ class KubernetesAnsibleModule(AnsibleModule):
         if not os.path.exists(path):
             self.fail_json(msg="Error accessing {0}. Does the file exist?".format(path))
         try:
-            result = yaml.safe_load_all(open(path, 'r'))
+            result = list(yaml.safe_load_all(open(path, 'r')))
         except (IOError, yaml.YAMLError) as exc:
             self.fail_json(msg="Error loading resource_definition: {0}".format(exc))
         return result
+
+    @staticmethod
+    def diff_objects(existing, new):
+
+        def get_shared_attrs(o1, o2):
+            shared_attrs = {}
+            for k, v in o2.items():
+                if isinstance(v, dict):
+                    shared_attrs[k] = get_shared_attrs(o1.get(k, {}), v)
+                else:
+                    shared_attrs[k] = o1.get(k)
+            return shared_attrs
+
+        diffs = list(diff(new, get_shared_attrs(existing, new)))
+        match = len(diffs) == 0
+        return match, diffs
+

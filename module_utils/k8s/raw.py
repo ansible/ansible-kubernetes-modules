@@ -24,7 +24,6 @@ import urllib3
 from ansible.module_utils.k8s.helper import COMMON_ARG_SPEC, AUTH_ARG_SPEC, OPENSHIFT_ARG_SPEC
 from ansible.module_utils.k8s.common import KubernetesAnsibleModule
 
-from dictdiffer import diff
 
 try:
     from kubernetes.client.rest import ApiException
@@ -77,6 +76,8 @@ class KubernetesRawModule(KubernetesAnsibleModule):
         return argspec
 
     def execute_module(self):
+        changed = False
+        results = []
         self.client = self.get_api_client()
         for definition in self.resource_definitions:
             candidates = self.client.search_resources(self.exact_match(definition))
@@ -84,25 +85,37 @@ class KubernetesRawModule(KubernetesAnsibleModule):
                 self.fail_json(msg='Failed to find resource {}.{}'.format(
                     definition['apiVersion'], definition['kind']
                 ))
-                raise Exception(definition)
             if len(candidates) == 1:
                 resource = candidates[0]
-            self.perform_action(resource, definition)
+            result = self.perform_action(resource, definition)
+            changed = changed or result['changed']
+            results.append(result)
+
+        if len(results) == 1:
+            self.exit_json(**results[0])
+
+        self.exit_json(**{
+            'changed': changed,
+            'result': {
+                'results': results
+            }
+        })
 
     def perform_action(self, resource, definition):
+        result = {'changed': False, 'result': {}}
         state = self.params.pop('state', None)
         force = self.params.pop('force', False)
         name = definition.get('metadata', {}).get('name')
         namespace = definition.get('metadata', {}).get('namespace')
         existing = None
-        return_attributes = dict(changed=False, result=dict())
 
         self.remove_aliases()
 
         if definition['kind'].endswith('list'):
-            k8s_obj = resource.list(namespace=namespace)
-            return_attributes['result'] = k8s_obj.to_dict()
-            self.exit_json(**return_attributes)
+            result['result'] = resource.list(namespace=namespace).to_dict()
+            result['changed'] = False
+            result['method'] = 'get'
+            return result
 
         try:
             existing = resource.get(name=name, namespace=namespace)
@@ -112,54 +125,55 @@ class KubernetesRawModule(KubernetesAnsibleModule):
                             error=exc.status)
 
         if state == 'absent':
+            result['method'] = "delete"
             if not existing:
                 # The object already does not exist
-                self.exit_json(**return_attributes)
+                return result
             else:
                 # Delete the object
                 if not self.check_mode:
                     try:
-                        resource.delete(name, namespace=namespace)
+                        k8s_obj = resource.delete(name, namespace=namespace)
+                        result['result'] = k8s_obj.to_dict()
                     except ApiException as exc:
                         self.fail_json(msg="Failed to delete object: {0}".format(exc.body),
                                        error=exc.status)
-                return_attributes['changed'] = True
-                self.exit_json(**return_attributes)
+                result['changed'] = True
+                return result
         else:
             if not existing:
                 if not self.check_mode:
                     k8s_obj = resource.create(definition, namespace=namespace)
-                    return_attributes['result'] = k8s_obj.to_dict()
-                return_attributes['changed'] = True
-                self.exit_json(**return_attributes)
+                    result['result'] = k8s_obj.to_dict()
+                result['changed'] = True
+                result['method'] = 'create'
+                return result
 
             if existing and force:
                 if not self.check_mode:
                     try:
                         k8s_obj = resource.replace(definition, name=name, namespace=namespace)
+                        result['result'] = k8s_obj.to_dict()
                     except ApiException as exc:
                         self.fail_json(msg="Failed to replace object: {0}".format(exc.body),
                                        error=exc.status)
-                return_attributes['result'] = k8s_obj.to_dict()
-                return_attributes['changed'] = True
-                self.exit_json(**return_attributes)
+                result['changed'] = True
+                result['method'] = 'replace'
+                return result
 
-            existing_attrs = existing.to_dict()
-            shared_attrs = {}
-            for k in definition.keys():
-                shared_attrs[k] = existing_attrs.get(k)
-            diffs = list(diff(definition, shared_attrs))
-            match = len(diffs) == 0
+            match, diffs = self.diff_objects(existing.to_dict(), definition)
 
             if match:
-                return_attributes['result'] = existing_attrs
-                self.exit_json(**return_attributes)
+                result['result'] = existing.to_dict()
+                return result
             # Differences exist between the existing obj and requested params
             if not self.check_mode:
                 try:
                     k8s_obj = resource.update(definition, name=name, namespace=namespace)
+                    result['result'] = k8s_obj.to_dict()
                 except ApiException as exc:
                     self.fail_json(msg="Failed to patch object: {0}".format(exc.body))
-            return_attributes['result'] = k8s_obj.to_dict()
-            return_attributes['changed'] = True
-            self.exit_json(**return_attributes)
+            result['changed'] = True
+            result['method'] = 'patch'
+            result['diff'] = diffs
+            return result
