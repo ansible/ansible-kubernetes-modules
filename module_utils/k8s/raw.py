@@ -82,7 +82,7 @@ class KubernetesRawModule(KubernetesAnsibleModule):
             candidates = self.client.search_resources(self.exact_match(definition))
             if not candidates:
                 self.fail_json(msg='Failed to find resource {}.{}'.format(
-                    definition['kind'], definition['apiVersion']
+                    definition['apiVersion'], definition['kind']
                 ))
                 raise Exception(definition)
             if len(candidates) == 1:
