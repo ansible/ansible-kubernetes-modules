@@ -19,6 +19,7 @@
 from __future__ import absolute_import, division, print_function
 
 import copy
+import urllib3
 
 from ansible.module_utils.k8s.helper import COMMON_ARG_SPEC, AUTH_ARG_SPEC, OPENSHIFT_ARG_SPEC
 from ansible.module_utils.k8s.common import KubernetesAnsibleModule
@@ -30,6 +31,8 @@ try:
 except ImportError:
     # Exception handled in common
     pass
+
+urllib3.disable_warnings()
 
 
 class KubernetesRawModule(KubernetesAnsibleModule):
@@ -46,29 +49,26 @@ class KubernetesRawModule(KubernetesAnsibleModule):
                                          supports_check_mode=True,
                                          **kwargs)
 
-        self.kind = self.params.pop('kind')
-        self.api_version = self.params.pop('api_version')
-        self.resource_definition = self.params.pop('resource_definition')
-        self.src = self.params.pop('src')
-        if self.src:
-            self.resource_definitions = self.load_resource_definitions(self.src)
+        kind = self.params.pop('kind')
+        api_version = self.params.pop('api_version')
+        name = self.params.pop('name')
+        namespace = self.params.pop('namespace')
+        resource_definition = self.params.pop('resource_definition')
+        if resource_definition:
+            self.resource_definitions = [resource_definition]
+        src = self.params.pop('src')
+        if src:
+            self.resource_definitions = self.load_resource_definitions(src)
 
-        if isinstance(self.resource_definition, dict):
-            if self.resource_definition:
-                self.api_version = self.resource_definition.get('apiVersion')
-                self.kind = self.resource_definition.get('kind')
-
-            if not self.api_version:
-                self.fail_json(
-                    msg=("Error: no api_version specified. Use the api_version parameter, or provide it as part of a ",
-                        "resource_definition.")
-                )
-            if not self.kind:
-                self.fail_json(
-                    msg="Error: no kind specified. Use the kind parameter, or provide it as part of a resource_definition"
-                )
-
-            self.resource_definitions = [self.resource_definition]
+        if not resource_definition and not src:
+            self.resource_definitions = [{
+                'kind': kind,
+                'apiVersion': api_version,
+                'metadata': {
+                    'name': name,
+                    'namespace': namespace
+                }
+            }]
 
     @property
     def argspec(self):
@@ -76,33 +76,31 @@ class KubernetesRawModule(KubernetesAnsibleModule):
         argspec.update(copy.deepcopy(AUTH_ARG_SPEC))
         return argspec
 
-    def exact_match(definition):
-        def inner(resource):
-            return all([
-                resource.kind == definition.get('kind'),
-                '/'.join([resource.group, resource.apiversion]) == definition.get('apiVersion')
-            ])
-        return inner
-
     def execute_module(self):
         self.client = self.get_api_client()
         for definition in self.resource_definitions:
-            resource = self.client.search_resources(self.exact_match(definition))
+            candidates = self.client.search_resources(self.exact_match(definition))
+            if not candidates:
+                self.fail_json(msg='Failed to find resource {}.{}'.format(
+                    definition['kind'], definition['apiVersion']
+                ))
+                raise Exception(definition)
+            if len(candidates) == 1:
+                resource = candidates[0]
             self.perform_action(resource, definition)
 
     def perform_action(self, resource, definition):
-
         state = self.params.pop('state', None)
         force = self.params.pop('force', False)
-        name = definition.get('metadata', {}).get('name') or self.params.get('name')
-        namespace = definition.get('metadata', {}).get('namespace') or self.params.get('namespace')
+        name = definition.get('metadata', {}).get('name')
+        namespace = definition.get('metadata', {}).get('namespace')
         existing = None
         return_attributes = dict(changed=False, result=dict())
 
         self.remove_aliases()
 
         if definition['kind'].endswith('list'):
-            k8s_obj = resource.list(namespace=self.params.get('namespace'))
+            k8s_obj = resource.list(namespace=namespace)
             return_attributes['result'] = k8s_obj.to_dict()
             self.exit_json(**return_attributes)
 

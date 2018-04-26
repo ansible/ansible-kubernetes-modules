@@ -110,7 +110,6 @@ class KubernetesAnsibleModule(AnsibleModule):
                         'cert_file', 'key_file', 'ssl_ca_cert', 'verify_ssl')
 
         configuration = kubernetes.client.Configuration()
-        params = self.params
         for key, value in iteritems(self.params):
             if key in auth_args and value is not None:
                 if key == 'api_key':
@@ -124,11 +123,11 @@ class KubernetesAnsibleModule(AnsibleModule):
 
         kubernetes.client.Configuration.set_default(configuration)
 
-        if params.get('username') and params.get('password') and params.get('host'):
-            auth_method = 'params'
-        elif params.get('api_key') and params.get('host'):
-            auth_method = 'params'
-        elif params.get('kubeconfig') or params.get('context'):
+        if self.params.get('username') and self.params.get('password') and self.params.get('host'):
+            auth_method = 'self.params'
+        elif self.params.get('api_key') and self.params.get('host'):
+            auth_method = 'self.params'
+        elif self.params.get('kubeconfig') or self.params.get('context'):
             auth_method = 'file'
         else:
             auth_method = 'default'
@@ -139,16 +138,15 @@ class KubernetesAnsibleModule(AnsibleModule):
                 kubernetes.config.load_incluster_config()
                 return DynamicClient(kubernetes.client.ApiClient())
             except kubernetes.config.ConfigException:
-                return DynamicClient(self.client_from_kubeconfig(params.get('kubeconfig'), params.get('context')))
+                return DynamicClient(self.client_from_kubeconfig(self.params.get('kubeconfig'), self.params.get('context')))
 
         if auth_method == 'file':
-            return DynamicClient(self.client_from_kubeconfig(params.get('kubeconfig'), params.get('context')))
+            return DynamicClient(self.client_from_kubeconfig(self.params.get('kubeconfig'), self.params.get('context')))
 
         if auth_method == 'params':
             return DynamicClient(kubernetes.client.ApiClient(configuration))
 
-
-    def client_from_kubeconfig(self):
+    def client_from_kubeconfig(self, config_file, context):
         try:
             return kubernetes.config.new_client_from_config(config_file, context)
         except (IOError, kubernetes.config.ConfigException):
@@ -159,14 +157,17 @@ class KubernetesAnsibleModule(AnsibleModule):
                 return ApiClient()
             raise
 
-    def exact_match(self, resource):
-        kind = self.resource_definition['kind']
-        if kind.lower().endswith('list'):
-            kind = self.resource_definition['kind'][:-4]
-        return (
-            kind == resource.kind and
-            self.resource_definition['apiVersion'] == '/'.join([resource.group, resource.apiversion])
-        )
+    def exact_match(self, definition):
+        def inner(resource):
+            if resource.group:
+                apiversion = '/'.join([resource.group, resource.apiversion])
+            else:
+                apiversion = resource.apiversion
+            return all([
+                resource.kind == definition.get('kind'),
+                apiversion == definition.get('apiVersion')
+            ])
+        return inner
 
     def remove_aliases(self):
         """
