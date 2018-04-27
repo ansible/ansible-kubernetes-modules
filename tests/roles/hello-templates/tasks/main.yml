@@ -12,7 +12,7 @@
         description: Load resources
   register: create_project
 
-- debug: var=create_project
+- debug: msg={{ lookup('k8s', api_version='project.openshift.io/v1', kind='Project', resource_name="test-resource-defn")}}
 
 # Create service from unaltered YAML copied from console
 - name: Create service from resource definition
@@ -43,7 +43,7 @@
         loadBalancer: {}
   register: create_service
 
-- debug: var=create_service
+- debug: msg={{ lookup('k8s', api_version='v1', kind='Service', namespace='test-resource-defn', resource_name="hello-service") }}
 
 - name: Create deployment from resource file
   k8s:
@@ -54,4 +54,6 @@
     verify_ssl: '{{ os_verify_ssl }}'
   register: deployment_create
 
-- debug: var=deployment_create
+- debug: msg={{ lookup('k8s', src=src) }}
+  vars:
+    src: "{{ role_path }}/files/deployment.yml"

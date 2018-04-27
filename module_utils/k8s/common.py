@@ -19,20 +19,13 @@
 from __future__ import absolute_import, division, print_function
 
 import os
-import re
-import copy
-import json
-
-from datetime import datetime
 
 from dictdiffer import diff
 
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible.module_utils.k8s.helper import\
-    AnsibleMixin,\
-    HAS_STRING_UTILS
+from ansible.module_utils.k8s.helper import AUTH_ARG_SPEC
 try:
     import kubernetes
     from openshift.dynamic import DynamicClient
@@ -63,7 +56,6 @@ def remove_secret_data(obj_dict):
     pass
 
 
-
 class KubernetesAnsibleModule(AnsibleModule):
     resource_definition = None
     api_version = None
@@ -79,11 +71,6 @@ class KubernetesAnsibleModule(AnsibleModule):
         if not HAS_YAML:
             raise Exception(
                 "This module requires PyYAML. Try `pip install PyYAML`"
-            )
-
-        if not HAS_STRING_UTILS:
-            raise Exception(
-                "This module requires Python string utils. Try `pip install python-string-utils`"
             )
 
         kwargs['argument_spec'] = self.argspec
@@ -109,8 +96,7 @@ class KubernetesAnsibleModule(AnsibleModule):
         super(KubernetesAnsibleModule, self).exit_json(**return_attributes)
 
     def get_api_client(self):
-        auth_args = ('host', 'api_key', 'kubeconfig', 'context', 'username', 'password',
-                        'cert_file', 'key_file', 'ssl_ca_cert', 'verify_ssl')
+        auth_args = AUTH_ARG_SPEC.keys()
 
         configuration = kubernetes.client.Configuration()
         for key, value in iteritems(self.params):
@@ -158,20 +144,14 @@ class KubernetesAnsibleModule(AnsibleModule):
             # an empty configuration
             # If one was specified, we will crash
             if not config_file:
-                return ApiClient()
+                return kubernetes.client.ApiClient()
             raise
 
     def exact_match(self, definition):
-        def inner(resource):
-            if resource.group:
-                apiversion = '/'.join([resource.group, resource.apiversion])
-            else:
-                apiversion = resource.apiversion
-            return all([
-                resource.kind == definition.get('kind'),
-                apiversion == definition.get('apiVersion')
-            ])
-        return inner
+        return {
+            'kind': definition.get('kind'),
+            'api_version': definition.get('apiVersion'),
+        }
 
     def remove_aliases(self):
         """

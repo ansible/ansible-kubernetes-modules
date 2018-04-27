@@ -16,25 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
-import base64
 import copy
 
-from ansible.module_utils.six import iteritems, string_types
-from keyword import kwlist
-
 try:
-    from openshift.helper import PRIMITIVES
-    from openshift.helper.exceptions import KubernetesException
+    from openshift.dynamic import DynamicClient  # NOQA
     HAS_K8S_MODULE_HELPER = True
 except ImportError as exc:
     HAS_K8S_MODULE_HELPER = False
-
-# TODO Remove string_utils dependency
-try:
-    import string_utils
-    HAS_STRING_UTILS = True
-except ImportError:
-    HAS_STRING_UTILS = False
 
 
 ARG_ATTRIBUTES_BLACKLIST = ('property_path',)

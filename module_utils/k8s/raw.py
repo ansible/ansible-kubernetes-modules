@@ -80,13 +80,14 @@ class KubernetesRawModule(KubernetesAnsibleModule):
         results = []
         self.client = self.get_api_client()
         for definition in self.resource_definitions:
-            candidates = self.client.search_resources(self.exact_match(definition))
-            if not candidates:
-                self.fail_json(msg='Failed to find resource {}.{}'.format(
-                    definition['apiVersion'], definition['kind']
+            kind = definition.get('kind')
+            api_version = definition.get('apiVersion')
+            try:
+                resource = self.client.resources.get(kind=kind, api_version=api_version)
+            except Exception as e:
+                self.fail_json(msg='Failed to find resource {}.{}: {}'.format(
+                    api_version, kind, e
                 ))
-            if len(candidates) == 1:
-                resource = candidates[0]
             result = self.perform_action(resource, definition)
             changed = changed or result['changed']
             results.append(result)

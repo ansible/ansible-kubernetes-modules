@@ -9,7 +9,7 @@
     verify_ssl: '{{ os_verify_ssl }}'
   register: delete_project
 
-- debug: var=delete_project
+- debug: msg={{ lookup('k8s', api_version='project.openshift.io/v1', kind='Project', resource_name='hello')}}
 
 - name: Create project
   k8s:
@@ -22,7 +22,7 @@
     verify_ssl: '{{ os_verify_ssl }}'
   register: create_project
 
-- debug: var=create_project
+- debug: msg={{ lookup('k8s', api_version='project.openshift.io/v1', kind='Project', resource_name='hello')}}
 
 - name: Create service
   k8s:
@@ -47,7 +47,7 @@
     verify_ssl: '{{ os_verify_ssl }}'
   register: create_service
 
-- debug: var=create_service
+- debug: msg={{ lookup('k8s', api_version='v1', kind='Service', namespace='hello', label_selector='app=hello') }}
 
 - name: Create deployment config
   k8s:
@@ -87,7 +87,7 @@
                   name: web-8100-tcp
   register: create_deployment
 
-- debug: var=create_deployment
+- debug: msg={{ lookup('k8s', api_version='apps.openshift.io/v1', kind='DeploymentConfig', namespace='hello', resource_name='hello-deploy')}}
 
 - name: Create route
   k8s:
@@ -112,4 +112,4 @@
           weight: 100
   register: create_route
 
-- debug: var=create_route
+- debug: msg={{ lookup('k8s', api_version='route.openshift.io/v1', kind='Route', namespace='hello', resource_name='hello-route')}}
