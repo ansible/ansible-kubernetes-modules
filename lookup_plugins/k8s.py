@@ -29,11 +29,15 @@ DOCUMENTATION = """
 
     description:
       - Uses the OpenShift Python client to fetch a specific object by name, all matching objects within a
-        namespace, or all matching objects for all namespaces.
+        namespace, or all matching objects for all namespaces, as well as information about the cluster.
       - Provides access the full range of K8s APIs.
       - Enables authentication via config file, certificates, password or token.
 
     options:
+      cluster_info:
+        description:
+        - Use to specify the type of cluster information you are attempting to retrieve. Will take priority
+          over all the other options.
       api_version:
         description:
         - Use to specify the API version. If I(resource definition) is provided, the I(apiVersion) from the
@@ -190,18 +194,10 @@ RETURN = """
 
 from ansible.plugins.lookup import LookupBase
 
-import json
 import os
-import re
-import base64
 import copy
-import re
 
-from ansible.module_utils.six import iteritems, string_types
-from ansible.module_utils.basic import AnsibleModule
-
-from datetime import datetime
-from keyword import kwlist
+from ansible.module_utils.six import iteritems
 
 try:
     import kubernetes
@@ -241,6 +237,9 @@ COMMON_ARG_SPEC = {
         'default': 'v1',
         'aliases': ['api', 'version'],
     },
+    'cluster_info': {
+        'choices': ['version', 'api_groups']
+    }
 }
 
 AUTH_ARG_SPEC = {
@@ -388,6 +387,14 @@ class KubernetesLookup(object):
 
     def run(self, terms, variables=None, **kwargs):
         self.params = kwargs
+        self.client = self.get_api_client()
+
+        cluster_info = kwargs.get('cluster_info')
+        if cluster_info == 'version':
+            return [self.client.version]
+        if cluster_info == 'api_groups':
+            return [self.client.resources.api_groups]
+
         self.kind = kwargs.get('kind')
         self.name = kwargs.get('resource_name')
         self.namespace = kwargs.get('namespace')
@@ -412,7 +419,6 @@ class KubernetesLookup(object):
                 "using the 'resource_definition' parameter."
             )
 
-        self.client = self.get_api_client()
 
         resource = self.client.resources.get(kind=self.kind, api_version=self.api_version)
         try:

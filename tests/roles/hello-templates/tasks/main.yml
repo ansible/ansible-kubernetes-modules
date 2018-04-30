@@ -5,14 +5,14 @@
     verify_ssl: '{{ os_verify_ssl }}'
     definition:
       kind: Project
-      apiVersion: project.openshift.io/v1
+      apiVersion: v1
       metadata:
         name: test-resource-defn
         displayName: Resource Defn
         description: Load resources
   register: create_project
 
-- debug: msg={{ lookup('k8s', api_version='project.openshift.io/v1', kind='Project', resource_name="test-resource-defn")}}
+- debug: msg={{ lookup('k8s', api_version='v1', kind='Project', resource_name="test-resource-defn")}}
 
 # Create service from unaltered YAML copied from console
 - name: Create service from resource definition

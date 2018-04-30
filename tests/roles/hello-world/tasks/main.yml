@@ -1,7 +1,7 @@
 - name: Delete project
   k8s:
     kind: Project
-    api_version: project.openshift.io/v1
+    api_version: v1
     name: hello
     state: absent
     kubeconfig: '{{ os_kubeconfig }}'
@@ -9,12 +9,12 @@
     verify_ssl: '{{ os_verify_ssl }}'
   register: delete_project
 
-- debug: msg={{ lookup('k8s', api_version='project.openshift.io/v1', kind='Project', resource_name='hello')}}
+- debug: msg={{ lookup('k8s', api_version='v1', kind='Project', resource_name='hello')}}
 
 - name: Create project
   k8s:
     kind: Project
-    api_version: project.openshift.io/v1
+    api_version: v1
     name: hello
     state: present
     kubeconfig: '{{ os_kubeconfig }}'
@@ -22,7 +22,7 @@
     verify_ssl: '{{ os_verify_ssl }}'
   register: create_project
 
-- debug: msg={{ lookup('k8s', api_version='project.openshift.io/v1', kind='Project', resource_name='hello')}}
+- debug: msg={{ lookup('k8s', api_version='v1', kind='Project', resource_name='hello')}}
 
 - name: Create service
   k8s:
